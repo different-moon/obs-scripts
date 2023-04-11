@@ -200,19 +200,36 @@ function script_update(settings)
 
     if countdown_type == "target" then
         local time_string = obs.obs_data_get_string(settings, "target")
-        local _, _, hour_string, minute_string = time_string:find("(%d?%d):(%d%d)")
+        local _, _, hour_string, minute_string = time_string:find("^%s*(%d?%d):(%d%d)")
+        local _, _, am_pm = time_string:find("([ap]m)%s*$")
 
         target_table = os.date("*t")
 
-        local hour = tonumber(hour_string) or (target_table["hour"] + 1)
+        local hour = tonumber(hour_string) or 0
+        local minute = tonumber(minute_string) or 0
 
-        if target_table["hour"] < hour then
-            target_table["hour"] = hour
-        else
-            target_table["hour"] = hour + 12
+        if am_pm ~= nil then
+            hour = math.max(math.min(hour, 12), 1)
+
+            if am_pm == "am" then
+                if hour == 12 and minute == 0 then
+                    hour = 24
+                elseif hour == 12 then
+                    hour = 0
+                end
+            elseif hour < 12 then
+                hour = hour + 12
+            end
         end
 
-        target_table["min"] = tonumber(minute_string) or 0
+        if hour == 24 then
+            target_table["day"] = target_table["day"] + 1
+            target_table["hour"] = 0
+        else
+            target_table["hour"] = hour
+        end
+
+        target_table["min"] = minute
         target_table["sec"] = 0
     else
         duration_seconds = obs.obs_data_get_int(settings, "duration") * 60
@@ -224,8 +241,9 @@ end
 -- A function named script_defaults will be called to set the default settings
 function script_defaults(settings)
     obs.obs_data_set_default_string(settings, "type", "target")
+    obs.obs_data_set_default_string(settings, "target", "5:00pm")
     obs.obs_data_set_default_int(settings, "duration", 5)
-    obs.obs_data_set_default_string(settings, "countdown_text", "%02d:%02d")
+    obs.obs_data_set_default_string(settings, "countdown_text", "Starting in %d:%02d")
     obs.obs_data_set_default_string(settings, "stop_text", "Starting soon!")
 end
 
